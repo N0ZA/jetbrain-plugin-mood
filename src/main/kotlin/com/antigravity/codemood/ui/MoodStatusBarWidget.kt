@@ -51,6 +51,10 @@ class MoodStatusBarWidget(private val project: Project) : StatusBarWidget, Statu
             MoodState.FRUSTRATED -> "Mood: 😤 Frustrated"
             MoodState.TIRED -> "Mood: 😴 Tired"
             MoodState.NEUTRAL -> "Mood: 😐 Neutral"
+            MoodState.CONFUSED -> "Mood: 😵 Confused"
+            MoodState.STUCK -> "Mood: 🚧 Stuck (Errors)"
+            MoodState.DESPERATE -> "Mood: 🆘 Desperate"
+            MoodState.COPYING -> "Mood: 📋 Learning/Copying"
         }
     }
 

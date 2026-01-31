@@ -8,7 +8,11 @@ enum class MoodState {
     NEUTRAL,
     FLOW,
     FRUSTRATED,
-    TIRED
+    TIRED,
+    CONFUSED,
+    STUCK,
+    DESPERATE,
+    COPYING
 }
 
 @Service(Service.Level.PROJECT)
@@ -16,13 +20,19 @@ class MoodAnalysisService(private val project: Project) {
 
     private val keystrokeTimestamps = LinkedList<Long>()
     private val deletionTimestamps = LinkedList<Long>()
+    private val tabSwitchTimestamps = LinkedList<Long>()
+    private val executionTimestamps = LinkedList<Long>()
+    private val pasteTimestamps = LinkedList<Long>()
+    
+    private var isStuckInRedZone = false
+    
     private val windowSizeMs = 60 * 1000L // 1 minute window
     
-    // Cooldown to prevent spamming the user with breathing exercises
+    // Cooldown
     private var lastInterventionTime = 0L
-    private val interventionCooldownMs = 5 * 60 * 1000L // 5 minutes
+    private val interventionCooldownMs = 5 * 60 * 1000L 
 
-    // Public Stats for Dashboard
+    // Public Stats
     var currentWpm: Double = 0.0
         private set
     var currentDeletions: Int = 0
@@ -34,11 +44,13 @@ class MoodAnalysisService(private val project: Project) {
     private var totalWpmSamples = 0
     private var cumulativeWpm = 0.0
     
-    // Timer for logging history every minute
+    // Timer for logging
     private var lastLogTime = System.currentTimeMillis()
 
     var currentMood: MoodState = MoodState.NEUTRAL
         private set
+
+    // --- Inputs ---
 
     fun recordKeystroke() {
         cleanOldData()
@@ -46,77 +58,134 @@ class MoodAnalysisService(private val project: Project) {
         analyzeMood()
     }
     
-    // Called by DeletionActionListener
     fun recordDeletion() {
         cleanOldData()
         deletionTimestamps.add(System.currentTimeMillis())
+        analyzeMood()
+    }
+    
+    fun recordTabSwitch() {
+        cleanOldData()
+        tabSwitchTimestamps.add(System.currentTimeMillis())
+        analyzeMood()
+    }
+    
+    fun recordExecution() {
+        cleanOldData()
+        executionTimestamps.add(System.currentTimeMillis())
+        analyzeMood()
+    }
+    
+    fun recordPaste() {
+        cleanOldData()
+        pasteTimestamps.add(System.currentTimeMillis())
+        analyzeMood()
+    }
+    
+    fun recordStuckState(isStuck: Boolean) {
+        if (isStuck != isStuckInRedZone) {
+            isStuckInRedZone = isStuck
+            analyzeMood()
+        }
+    }
+    
+    // Called by UI timer to ensure graph decays when idle
+    fun refreshState() {
+        cleanOldData()
         analyzeMood()
     }
 
     private fun cleanOldData() {
         val now = System.currentTimeMillis()
         val cutoff = now - windowSizeMs
-        while (keystrokeTimestamps.isNotEmpty() && keystrokeTimestamps.first < cutoff) {
-            keystrokeTimestamps.removeFirst()
-        }
-        while (deletionTimestamps.isNotEmpty() && deletionTimestamps.first < cutoff) {
-            deletionTimestamps.removeFirst()
+        removeOld(keystrokeTimestamps, cutoff)
+        removeOld(deletionTimestamps, cutoff)
+        removeOld(tabSwitchTimestamps, cutoff)
+        removeOld(executionTimestamps, cutoff)
+        removeOld(pasteTimestamps, cutoff)
+    }
+    
+    private fun removeOld(list: LinkedList<Long>, cutoff: Long) {
+        while (list.isNotEmpty() && list.first < cutoff) {
+            list.removeFirst()
         }
     }
 
     private fun analyzeMood() {
-        val wpm = (keystrokeTimestamps.size / 5.0) // Approx 5 chars per word
-        val deletionRate = deletionTimestamps.size
+        val now = System.currentTimeMillis()
         
-        // Update public stats
-        currentWpm = wpm
+        // 1. Calculate Instant WPM (Last 5 seconds) - For UI Graph/Label
+        // "Speedometer" feel. Drops to 0 quickly.
+        val instantWindow = 5000L
+        val instantKeystrokes = keystrokeTimestamps.count { it > now - instantWindow }
+        val instantWpmValue = (instantKeystrokes / 5.0) * (60000.0 / instantWindow)
+        
+        // 2. Calculate Sustained WPM (Last 60 seconds) - For "Mood" Context
+        // "Climate" feel. Stable.
+        val sustainedKeystrokes = keystrokeTimestamps.size // Since we cleanOldData(60s) beforehand
+        val sustainedWpm = (sustainedKeystrokes / 5.0) 
+        
+        val deletionRate = deletionTimestamps.size
+        val tabRate = tabSwitchTimestamps.size
+        val execRate = executionTimestamps.size
+        val pasteRate = pasteTimestamps.size
+        
+        // Update public stats (UI sees the Instant one now!)
+        currentWpm = instantWpmValue
         currentDeletions = deletionRate
         
-        // Update Average WPM (Adaptive Heuristic)
-        if (wpm > 0) {
+        // Update Historical Average (Use sustained to filter noise)
+        if (sustainedWpm > 0) {
             totalWpmSamples++
-            cumulativeWpm += wpm
+            cumulativeWpm += sustainedWpm
             averageWpm = cumulativeWpm / totalWpmSamples
         }
         
-        // Zero typing = Neutral? Or just waiting.
-        if (keystrokeTimestamps.isEmpty()) {
-            currentMood = MoodState.NEUTRAL
+        // Zero Activity Check
+        if (keystrokeTimestamps.isEmpty() && tabRate == 0 && execRate == 0) {
+            if (isStuckInRedZone) { 
+                currentMood = MoodState.STUCK // Silent suffering
+            } else {
+                currentMood = MoodState.NEUTRAL
+            }
+            checkAndLogHistory()
             return
         }
 
-        // Heuristics: Use Adaptive Average!
-        // Flow = 20% faster than your average + low errors
+        // --- THE "BRAIN" LOGIC (HEURISTICS) ---
+        // We use SUSTAINED WPM for mood to avoid flickering "Flow" every time you pause for 2s.
+        
         val flowThreshold = if (averageWpm > 10) averageWpm * 1.2 else 40.0
         
         val newMood = when {
-            deletionRate > 20 -> MoodState.FRUSTRATED // High deletions = Rage?
-            wpm > flowThreshold && deletionRate < 5 -> MoodState.FLOW // High speed, low errors
-            // TODO: fatigue detection needs longer window
+            execRate > 5 -> MoodState.DESPERATE // "The Debug Loop"
+            isStuckInRedZone -> MoodState.STUCK // "The Red Zone"
+            deletionRate > 20 -> MoodState.FRUSTRATED // "Rage Typing"
+            tabRate > 15 -> MoodState.CONFUSED // "The Scroll of Confusion"
+            pasteRate > 3 -> MoodState.COPYING // "The Copy-Paste Ratio"
+            sustainedWpm > flowThreshold && deletionRate < 5 -> MoodState.FLOW 
             else -> MoodState.NEUTRAL
         }
         
         if (newMood != currentMood) {
             currentMood = newMood
-            // Trigger intervention if Frustrated and cooling down
-            if (currentMood == MoodState.FRUSTRATED) {
+            
+            // Trigger specific interventions
+            if (currentMood == MoodState.FRUSTRATED || currentMood == MoodState.DESPERATE) {
                 tryTriggerIntervention()
             }
         }
         
-        // Log to History every minute
         checkAndLogHistory()
-        
-        // Print for debugging (visible in console)
-        println("Mood Analysis: WPM=$wpm, Deletions=$deletionRate, State=$currentMood")
+        // Debug: Print both WPMs
+        // println("Mood: $currentMood (InstantWPM: ${instantWpmValue.toInt()}, Sustained: ${sustainedWpm.toInt()})")
     }
 
     private fun checkAndLogHistory() {
         val now = System.currentTimeMillis()
-        if (now - lastLogTime > 60 * 1000) { // 1 minute
+        if (now - lastLogTime > 60 * 1000) { 
             lastLogTime = now
             val statsService = project.getService(DailyStatsService::class.java)
-            // We log the current minute's WPM and Mood
             statsService.logMinute(currentWpm, currentMood)
         }
     }
@@ -125,8 +194,6 @@ class MoodAnalysisService(private val project: Project) {
         val now = System.currentTimeMillis()
         if (now - lastInterventionTime > interventionCooldownMs) {
             lastInterventionTime = now
-            
-            // UI must be triggered on EDT
             com.intellij.openapi.application.ApplicationManager.getApplication().invokeLater {
                 com.antigravity.codemood.ui.BreathingExerciseDialog(project).show()
             }

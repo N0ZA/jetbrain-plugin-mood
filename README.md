@@ -2,7 +2,7 @@
 
 **CodeMood** is an IntelliJ IDEA plugin that monitors your mental state while you code. It doesn't just check your syntax; it checks *you*.
 
-By analyzing your behavioral patterns (typing speed, deletion rates, pauses), CodeMood detects when you are in **Flow**, **Frustrated**, or **Fatigued**, and provides real-time interventions to keep you productive and healthy.
+By analyzing your behavioral patterns (typing speed, deletion rates, pauses, navigation), CodeMood detects when you are in **Flow**, **Frustrated**, **Confused**, or **Stuck**, and provides real-time interventions to keep you productive and healthy.
 
 ---
 
@@ -11,8 +11,12 @@ By analyzing your behavioral patterns (typing speed, deletion rates, pauses), Co
 ### 1. 🕵️ Passive Monitoring ("The Senses")
 CodeMood sits quietly in the background, respecting your privacy.
 - **Keystroke Dynamics:** Monitors your typing rhythm (WPM).
-- **Frustration Detection:** Detects "rage deleting" (rapid backspacing), a key sign of struggle.
-- **Privacy First:** No code is sent to the cloud. Analysis happens locally on your machine.
+- **Frustration Detection:** Detects "rage deleting" (rapid backspacing).
+- **😵 Confusion Detection:** Detects "The Scroll of Confusion" (rapidly switching tabs/files).
+- **🚧 Stuck Detection:** Detects "The Red Zone" (files with syntax errors for >2 minutes).
+- **🆘 Desperation Detection:** Detects "The Debug Loop" (rapidly hitting Run/Debug >5 times/min).
+- **📋 Copy/Paste Ratio:** Detects when you are copying code (Learning/StackOverflow mode).
+- **Privacy First:** No code is sent to the cloud. Analysis happens locally.
 
 ### 2. 📊 The Dashboard ("The Brain")
 Open the **CodeMood** tool window to see your mind on the screen.
@@ -22,7 +26,7 @@ Open the **CodeMood** tool window to see your mind on the screen.
 
 ### 3. 🛡️ Active Interventions ("The Care")
 When you go off-track, CodeMood nudges you back.
-- **😤 Frustrated?** If you start rage-deleting, a **Breathing Exercise** dialog automatically pops up to help you reset.
+- **😤 Frustrated / 🆘 Desperate?** If you rage-delete or spam the Run button, a **Breathing Exercise** dialog automatically pops up to help you reset.
 - **👀 Eye Strain?** The **20-20-20 Rule** enforcer reminds you every 20 minutes to look away from the screen.
 - **📉 Low Motivation?** Click the **AI Motivation** button to get a context-aware tip from GPT-3.5 based on your current mood.
 
@@ -73,14 +77,22 @@ Simulate making a mistake and "rage delete" (press Backspace >20 times quickly).
     - Status Bar changes to **"Mood: 😤 Frustrated"**.
     - A **Breathing Exercise** dialog pops up.
 
-### ✅ Test 4: The Dashboard
+### ✅ Test 4: Triggering "Confusion"
+Open 4-5 different files and switch between them rapidly (Ctrl+Tab) for 20 seconds.
+- **Result:** Status Bar changes to **"Mood: 😵 Confused"**.
+
+### ✅ Test 5: Triggering "Desperation"
+Click the "Run" or "Debug" button >5 times rapidly.
+- **Result:** Status Bar changes to **"Mood: 🆘 Desperate"**.
+
+### ✅ Test 6: The AI Coach
 Open the **CodeMood** tool window (sidebar).
-- Watch the line graph update as you type.
-- Click **"Get AI Motivation 🤖"** to see a generated tip.
+- Click **"Get AI Motivation 🤖"**.
+- CodeMood will send your current state (e.g., "CONFUSED") to GPT-3.5 and give you a tip like *"Stop switching contexts. Pick one file and trace the logic step-by-step."*
 
 ---
 
 ## 📂 Project Structure
 - `src/main/kotlin/com/antigravity/codemood/services/MoodAnalysisService.kt`: The core logic engine.
 - `src/main/kotlin/com/antigravity/codemood/ui/CodeMoodToolWindowFactory.kt`: The Dashboard UI.
-- `src/main/kotlin/com/antigravity/codemood/listeners/DeletionActionListener.kt`: The frustration sensor.
+- `src/main/kotlin/com/antigravity/codemood/listeners/AdvancedBehaviorListeners.kt`: Confusion, Debug, and Copy listeners.
