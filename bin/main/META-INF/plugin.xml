@@ -1,0 +1,48 @@
+<idea-plugin>
+    <id>com.antigravity.codemood</id>
+    <name>CodeMood</name>
+    <vendor email="support@codemood.com" url="https://www.codemood.com">Antigravity</vendor>
+
+    <description><![CDATA[
+    <b>CodeMood: The Emotional Intelligence Layer for IntelliJ.</b><br>
+    <br>
+    CodeMood monitors your keystrokes and coding patterns to detect fatigue, frustration, and flow states.
+    It provides gentle nudges to take breaks (20-20-20 rule) and breathing exercises when you're stuck.
+    ]]></description>
+
+    <!-- Product and plugin compatibility requirements.
+         Read more: https://plugins.jetbrains.com/docs/intellij/plugin-compatibility.html -->
+    <depends>com.intellij.modules.platform</depends>
+
+    <extensions defaultExtensionNs="com.intellij">
+        <typedHandler implementation="com.antigravity.codemood.listeners.KeystrokeListener"/>
+        <statusBarWidgetFactory id="MoodStatusBarWidget" implementation="com.antigravity.codemood.ui.MoodStatusBarWidgetFactory"/>
+        
+        <notificationGroup id="CodeMood Notifications"
+                           displayType="BALLOON"
+                           key="codemood.notifications"/>
+
+        <toolWindow id="CodeMood" secondary="true" icon="AllIcons.General.Information" anchor="right"
+                    factoryClass="com.antigravity.codemood.ui.CodeMoodToolWindowFactory"/>
+                    
+        <projectConfigurable parentId="tools" instance="com.antigravity.codemood.settings.CodeMoodConfigurable"
+                             id="com.antigravity.codemood.settings.CodeMoodConfigurable" displayName="CodeMood"/>
+        
+        <notificationGroup id="CodeMood Notifications"
+                           displayType="BALLOON"
+                           key="codemood.notifications"/>
+    </extensions>
+
+
+    
+    <applicationListeners>
+        <listener class="com.antigravity.codemood.listeners.DeletionActionListener" topic="com.intellij.openapi.actionSystem.ex.AnActionListener"/>
+        <listener class="com.antigravity.codemood.listeners.CopyPasteActionListener" topic="com.intellij.openapi.actionSystem.ex.AnActionListener"/>
+    </applicationListeners>
+
+    <projectListeners>
+        <listener class="com.antigravity.codemood.listeners.NavigationListener" topic="com.intellij.openapi.fileEditor.FileEditorManagerListener"/>
+        <listener class="com.antigravity.codemood.listeners.ExecutionRunListener" topic="com.intellij.execution.ExecutionListener"/>
+    </projectListeners>
+
+</idea-plugin>
